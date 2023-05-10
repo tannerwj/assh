@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+    
+import iterm2
+import sys
+import ansible.inventory.manager
+import ansible.parsing.dataloader
+import ansible.constants as C
+
+ansible_group = ''
+width = 5
+
+async def assh(connection):
+    loader = ansible.parsing.dataloader.DataLoader()
+    inventory_manager = ansible.inventory.manager.InventoryManager(loader=loader, sources=C.DEFAULT_HOST_LIST)
+
+    matched_hosts = inventory_manager.get_hosts(pattern=ansible_group)
+    print('*** WILL SSH TO ***')
+    print(matched_hosts)
+    print('*******************')
+
+    app = await iterm2.async_get_app(connection)
+    await app.async_activate()
+
+    window = await iterm2.Window.async_create(connection)
+
+    main = window.current_tab
+    await main.async_activate()
+
+    sess = main.current_session
+    await sess.async_send_text('ssh ' + str(matched_hosts[0]) + '\n')
+
+    panes = [sess]
+    cur_row = 0
+
+    for index, host in enumerate(matched_hosts):
+        if index == 0: continue
+
+        if index % width == 0: cur_row += 1
+
+        if (index * cur_row) < width:
+            pane = panes[index-1]
+            isVertical = True
+        else:
+            pane = panes[index-width]
+            isVertical = False
+
+        split = await pane.async_split_pane(vertical=isVertical)
+        await split.async_send_text('ssh ' + str(host) + '\n')
+        panes.append(split)
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print("Usage: assh <ansible_group>")
+        sys.exit(1)
+
+    ansible_group = sys.argv[1]
+    iterm2.run_until_complete(assh)
