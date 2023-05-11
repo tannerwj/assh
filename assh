@@ -21,13 +21,16 @@ async def assh(connection):
     app = await iterm2.async_get_app(connection)
     await app.async_activate()
 
-    window = await iterm2.Window.async_create(connection)
+    window = await iterm2.Window.async_create(connection, 'assh')
 
     main = window.current_tab
     await main.async_activate()
 
     sess = main.current_session
     await sess.async_send_text('ssh ' + str(matched_hosts[0]) + '\n')
+
+    domain = iterm2.broadcast.BroadcastDomain()
+    domain.add_session(sess)
 
     panes = [sess]
     cur_row = 0
@@ -44,9 +47,12 @@ async def assh(connection):
             pane = panes[index-width]
             isVertical = False
 
-        split = await pane.async_split_pane(vertical=isVertical)
+        split = await pane.async_split_pane(vertical=isVertical, profile='assh')
         await split.async_send_text('ssh ' + str(host) + '\n')
+        domain.add_session(split)
         panes.append(split)
+
+    await iterm2.async_set_broadcast_domains(connection, [domain])
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
